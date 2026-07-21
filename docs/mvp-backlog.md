@@ -16,6 +16,8 @@ Every item's Definition of Done is `docs/testing/quality-gates.md` §4 (migratio
 | BL-106 Outbox/inbox event backbone (ADR-0005) | — | BL-101 | BR-020 | — | — | At-least-once delivery + idempotent consumer proven in integration test |
 | BL-107 Base reference-data admin | US-ADMIN-002 | BL-103 | FR-ADMIN-001 | — | API-003 | Admin can version a reference config without code change |
 
+**Implementation status (this repo):** BL-101, BL-102, BL-103, BL-104, BL-105, BL-106 are implemented — see `infra/database` (schema + RLS migrations), `packages/authz` (PDP), `packages/eventing` (outbox/inbox + relay), `packages/crypto` (password/TOTP/token primitives), `services-or-modules/identity-tenant` (provisioning, auth, role/permission admin), `services-or-modules/governance` (audit log), `apps/api` (Fastify composition root). All packages build (`pnpm -r run build`) and their test suites pass (`pnpm test`, requires a local Postgres — see `infra/database/migrations`). Known gaps: BL-101's admin invite is a stub (a temporary password is returned in the response instead of a real invite email); BL-102's `/auth/switch-tenant` deviates from `docs/api/openapi-skeleton.yaml`'s illustrative `/memberships/{id}/switch` path (reconcile when the OpenAPI doc is finalized against real code); BL-106's relay publishes to a caller-supplied function, not yet a real message broker; `POST /tenants` is gated by a shared provisioning key stub, not real platform-owner authentication. BL-107 (full reference-data admin beyond roles/permissions) is not started — it depends on modules (funnels, content) that ship in later stages.
+
 ## Stage 2 — CRM Workbench (roadmap stage 2)
 
 | Item | US | Depends on | BR/FR | ENT | API/EVT | Exit |
