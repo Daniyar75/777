@@ -73,8 +73,8 @@ export function toErrorBody(err: unknown) {
     };
   }
 
-  // A DomainError from services-or-modules/* (duck-typed to avoid every module depending on
-  // this app's error class; each module owns its own DomainError with the same .code shape).
+  // A DomainError from services-or-modules/* (duck-typed rather than an instanceof check so
+  // this mapper doesn't care which package's copy of the class constructed it).
   if (
     typeof err === "object" &&
     err !== null &&
@@ -83,6 +83,7 @@ export function toErrorBody(err: unknown) {
     (err as { code: string }).code in STATUS_BY_CODE
   ) {
     const code = (err as { code: ErrorCode }).code;
+    const details = (err as { details?: unknown }).details;
     return {
       status: STATUS_BY_CODE[code],
       body: {
@@ -90,6 +91,7 @@ export function toErrorBody(err: unknown) {
         message: (err as { message?: string }).message ?? "Request failed",
         correlation_id: correlationId,
         retryable: RETRYABLE[code] ?? false,
+        ...(details !== undefined ? { details } : {}),
       },
     };
   }

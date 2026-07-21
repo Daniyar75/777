@@ -1,16 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { withTenantContext } from "@network-crm/database";
-import {
-  assignRole,
-  bindPermission as testBindPermission,
-  createTestDb,
-  insertMembership,
-  insertPermission,
-  insertRole,
-  insertTenant,
-  insertUser,
-  truncateAll,
-} from "@network-crm/test-support";
+import { createActorWithGrants, createTestDb, insertRole, insertTenant, truncateAll } from "@network-crm/test-support";
 import { bindPermission, createRole, ensurePermissionCatalog, listRoles } from "./index.js";
 
 const { db, close } = createTestDb();
@@ -22,26 +12,11 @@ afterAll(async () => {
   await close();
 });
 
-async function actorWithGrants(
-  tenantId: string,
-  grants: Array<{ resource: string; action: string; scope: "self" | "owned" | "assigned" | "mentored" | "branch" | "tenant" | "platform" }>,
-) {
-  const user = await insertUser(db);
-  const membership = await insertMembership(db, tenantId, user.id);
-  const role = await insertRole(db, tenantId, { code: `actor-role-${user.id.slice(0, 6)}`, scope: "tenant" });
-  for (const grant of grants) {
-    const permission = await insertPermission(db, grant.resource, grant.action);
-    await testBindPermission(db, tenantId, role.id, permission.id, { scope: grant.scope });
-  }
-  await assignRole(db, tenantId, membership.id, role.id);
-  return { userId: user.id, membershipId: membership.id, roleId: role.id };
-}
-
 describe("createRole (RBAC admin)", () => {
   it("allows an actor with role.create at tenant scope", async () => {
     const tenant = await insertTenant(db);
     await withTenantContext(db, tenant.id, (tx) => ensurePermissionCatalog(tx));
-    const actor = await actorWithGrants(tenant.id, [{ resource: "role", action: "create", scope: "tenant" }]);
+    const actor = await createActorWithGrants(db, tenant.id, [{ resource: "role", action: "create", scope: "tenant" }]);
 
     const role = await createRole(
       db,
@@ -55,7 +30,7 @@ describe("createRole (RBAC admin)", () => {
   it("denies an actor without role.create", async () => {
     const tenant = await insertTenant(db);
     await withTenantContext(db, tenant.id, (tx) => ensurePermissionCatalog(tx));
-    const actor = await actorWithGrants(tenant.id, [{ resource: "role", action: "read", scope: "tenant" }]);
+    const actor = await createActorWithGrants(db, tenant.id, [{ resource: "role", action: "read", scope: "tenant" }]);
 
     await expect(
       createRole(
@@ -72,7 +47,7 @@ describe("bindPermission self-escalation guard (roles-and-permissions.md §4)", 
   it("denies granting a broader scope than the actor's own for the same resource/action", async () => {
     const tenant = await insertTenant(db);
     await withTenantContext(db, tenant.id, (tx) => ensurePermissionCatalog(tx));
-    const actor = await actorWithGrants(tenant.id, [
+    const actor = await createActorWithGrants(db, tenant.id, [
       { resource: "role", action: "permissions.update", scope: "tenant" },
       { resource: "audit", action: "read", scope: "owned" }, // actor's own rank for audit.read is low
     ]);
@@ -91,7 +66,7 @@ describe("bindPermission self-escalation guard (roles-and-permissions.md §4)", 
   it("allows granting a scope the actor already holds or narrower", async () => {
     const tenant = await insertTenant(db);
     await withTenantContext(db, tenant.id, (tx) => ensurePermissionCatalog(tx));
-    const actor = await actorWithGrants(tenant.id, [
+    const actor = await createActorWithGrants(db, tenant.id, [
       { resource: "role", action: "permissions.update", scope: "tenant" },
       { resource: "role", action: "read", scope: "tenant" },
       { resource: "audit", action: "read", scope: "tenant" },

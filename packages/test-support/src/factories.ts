@@ -122,3 +122,62 @@ export async function assignRole(db: Database, tenantId: string, membershipId: s
     return row!;
   });
 }
+
+export interface GrantSpec {
+  resource: string;
+  action: string;
+  scope: "self" | "owned" | "assigned" | "mentored" | "branch" | "tenant" | "platform";
+  branchDepth?: number | null;
+  allowedFieldSensitivity?: Array<"none" | "pii_standard" | "pii_sensitive">;
+}
+
+/**
+ * One-call test setup for "a user with exactly these permissions" — creates the user,
+ * membership, a dedicated role, binds each grant, and assigns the role. Used across every
+ * module's integration tests that need an ActingIdentity with a specific, minimal PDP shape
+ * (e.g. to prove a self-escalation guard or a scope boundary), so this lives in test-support
+ * rather than being copy-pasted per package.
+ */
+export async function createActorWithGrants(db: Database, tenantId: string, grants: GrantSpec[]) {
+  const user = await insertUser(db);
+  const membership = await insertMembership(db, tenantId, user.id);
+  const role = await insertRole(db, tenantId, { code: `actor-role-${user.id.slice(0, 8)}`, scope: "tenant" });
+  for (const grant of grants) {
+    const permission = await insertPermission(db, grant.resource, grant.action);
+    await bindPermission(db, tenantId, role.id, permission.id, {
+      scope: grant.scope,
+      branchDepth: grant.branchDepth ?? null,
+      allowedFieldSensitivity: grant.allowedFieldSensitivity ?? [],
+    });
+  }
+  await assignRole(db, tenantId, membership.id, role.id);
+  return { userId: user.id, membershipId: membership.id, roleId: role.id };
+}
+
+export async function insertContact(
+  db: Database,
+  tenantId: string,
+  ownerUserId: string,
+  overrides: Partial<typeof schema.contacts.$inferInsert> = {},
+) {
+  return withTenantContext(db, tenantId, async (tx) => {
+    const id = overrides.id ?? randomUUID();
+    const [row] = await tx
+      .insert(schema.contacts)
+      .values({
+        id,
+        tenantId,
+        ownerUserId,
+        displayName: overrides.displayName ?? `Test Contact ${id.slice(0, 8)}`,
+        fullName: overrides.fullName ?? null,
+        source: overrides.source ?? null,
+        normalizedPhone: overrides.normalizedPhone ?? null,
+        normalizedEmail: overrides.normalizedEmail ?? null,
+        externalId: overrides.externalId ?? null,
+        status: overrides.status ?? "active",
+        createdBy: overrides.createdBy ?? ownerUserId,
+      })
+      .returning();
+    return row!;
+  });
+}

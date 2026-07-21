@@ -35,6 +35,9 @@ importers:
       '@network-crm/identity-tenant':
         specifier: workspace:*
         version: link:../../services-or-modules/identity-tenant
+      '@network-crm/relationship-crm':
+        specifier: workspace:*
+        version: link:../../services-or-modules/relationship-crm
       fastify:
         specifier: ^5.1.0
         version: 5.10.0
@@ -227,6 +230,43 @@ importers:
       jose:
         specifier: ^5.9.6
         version: 5.10.0
+    devDependencies:
+      '@network-crm/test-support':
+        specifier: workspace:*
+        version: link:../../packages/test-support
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.4
+        version: 2.1.9(@types/node@22.20.1)
+
+  services-or-modules/relationship-crm:
+    dependencies:
+      '@network-crm/authz':
+        specifier: workspace:*
+        version: link:../../packages/authz
+      '@network-crm/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@network-crm/database':
+        specifier: workspace:*
+        version: link:../../infra/database
+      '@network-crm/eventing':
+        specifier: workspace:*
+        version: link:../../packages/eventing
+      '@network-crm/governance':
+        specifier: workspace:*
+        version: link:../governance
+      '@network-crm/identity-tenant':
+        specifier: workspace:*
+        version: link:../identity-tenant
+      drizzle-orm:
+        specifier: ^0.36.1
+        version: 0.36.4(@types/pg@8.20.0)(pg@8.22.0)
     devDependencies:
       '@network-crm/test-support':
         specifier: workspace:*

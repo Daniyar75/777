@@ -285,3 +285,111 @@ export const inboxConsumed = pgTable(
   },
   (t) => [uniqueIndex("inbox_consumed_event_consumer_unique").on(t.eventId, t.consumerName)],
 );
+
+// ---- Stage 2 (CRM Workbench, docs/mvp-backlog.md BL-201..207): Relationship CRM ----
+
+export const contactStatus = pgEnum("contact_status", ["active", "archived"]);
+export const contactRoleType = pgEnum("contact_role_type", ["candidate", "client", "partner", "other"]);
+export const contactRoleStatus = pgEnum("contact_role_status", ["active", "inactive"]);
+export const consentStatus = pgEnum("consent_status", ["granted", "withdrawn", "expired"]);
+
+// ---- ENT-006 Contact — identity aggregate (BR-001) ----
+export const contacts = pgTable(
+  "contacts",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    ownerUserId: uuid("owner_user_id")
+      .notNull()
+      .references(() => users.id),
+    displayName: text("display_name").notNull(),
+    fullName: text("full_name"),
+    source: text("source"),
+    // Normalized for duplicate detection (BRULE-CONTACT-003); not unique — a match surfaces
+    // as a candidate for merge, it never silently blocks or auto-merges (FR-CONTACT-004/005).
+    normalizedPhone: text("normalized_phone"),
+    normalizedEmail: text("normalized_email"),
+    externalId: text("external_id"),
+    status: contactStatus("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid("created_by").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    version: integer("version").notNull().default(0),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("contacts_tenant_idx").on(t.tenantId),
+    index("contacts_tenant_owner_idx").on(t.tenantId, t.ownerUserId),
+    index("contacts_tenant_phone_idx").on(t.tenantId, t.normalizedPhone),
+    index("contacts_tenant_email_idx").on(t.tenantId, t.normalizedEmail),
+  ],
+);
+
+// ---- ENT-007 ContactRole — multiple simultaneous roles per Contact (BRULE-CONTACT-001) ----
+export const contactRoles = pgTable(
+  "contact_roles",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    contactId: uuid("contact_id")
+      .notNull()
+      .references(() => contacts.id),
+    roleType: contactRoleType("role_type").notNull(),
+    status: contactRoleStatus("status").notNull().default("active"),
+    validFrom: timestamp("valid_from", { withTimezone: true }).notNull().defaultNow(),
+    validTo: timestamp("valid_to", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    version: integer("version").notNull().default(0),
+  },
+  (t) => [index("contact_roles_tenant_contact_idx").on(t.tenantId, t.contactId)],
+);
+
+// ---- ENT-048 Consent — purpose+channel scoped, evidence retained (SEC-011) ----
+export const consents = pgTable(
+  "consents",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    contactId: uuid("contact_id")
+      .notNull()
+      .references(() => contacts.id),
+    purpose: text("purpose").notNull(),
+    channel: text("channel").notNull(),
+    status: consentStatus("status").notNull(),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
+    effectiveAt: timestamp("effective_at", { withTimezone: true }).notNull().defaultNow(),
+    evidence: jsonb("evidence"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid("created_by").notNull(),
+  },
+  (t) => [index("consents_tenant_contact_purpose_channel_idx").on(t.tenantId, t.contactId, t.purpose, t.channel)],
+);
+
+// ---- ENT-016 Activity — immutable fact feeding the unified timeline (FR-CONTACT-003) ----
+export const activities = pgTable(
+  "activities",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    contactId: uuid("contact_id")
+      .notNull()
+      .references(() => contacts.id),
+    actorUserId: uuid("actor_user_id"),
+    type: text("type").notNull(),
+    summary: text("summary"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    source: text("source").notNull().default("manual"),
+    correlationId: uuid("correlation_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("activities_tenant_contact_idx").on(t.tenantId, t.contactId)],
+);

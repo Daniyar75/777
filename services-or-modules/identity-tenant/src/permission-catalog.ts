@@ -19,6 +19,15 @@ export const PERMISSION_CATALOG: ReadonlyArray<{ resource: string; action: strin
   { resource: "audit", action: "read" },
   { resource: "session", action: "read" },
   { resource: "session", action: "revoke" },
+  // Stage 2 (CRM Workbench, relationship-crm module)
+  { resource: "contact", action: "create" },
+  { resource: "contact", action: "read" },
+  { resource: "contact", action: "update" },
+  { resource: "contact", action: "archive" },
+  { resource: "consent", action: "create" },
+  { resource: "consent", action: "read" },
+  { resource: "activity", action: "create" },
+  { resource: "activity", action: "read" },
 ];
 
 function key(resource: string, action: string): string {
@@ -52,6 +61,14 @@ export const COMPANY_ADMIN_GRANTS: ReadonlyArray<{ resource: string; action: str
   { resource: "audit", action: "read" },
   { resource: "session", action: "read" },
   { resource: "session", action: "revoke" },
+  { resource: "contact", action: "create" },
+  { resource: "contact", action: "read" },
+  { resource: "contact", action: "update" },
+  { resource: "contact", action: "archive" },
+  { resource: "consent", action: "create" },
+  { resource: "consent", action: "read" },
+  { resource: "activity", action: "create" },
+  { resource: "activity", action: "read" },
 ];
 
 export async function findPermissionId(

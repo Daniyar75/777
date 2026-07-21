@@ -1,10 +1,10 @@
 # Network CRM / Network OS
 
-Multi-tenant CRM/SaaS platform for network-marketing businesses. `docs/` holds the architecture and planning baseline produced from the business requirements package in `docs/requirements/`, per the handoff instructions in `docs/requirements/claude-code-handoff.md`. Stage 1 (Platform Foundation, per `docs/mvp-backlog.md`) is implemented as a TypeScript/pnpm monorepo; everything past Stage 1 is still documentation only.
+Multi-tenant CRM/SaaS platform for network-marketing businesses. `docs/` holds the architecture and planning baseline produced from the business requirements package in `docs/requirements/`, per the handoff instructions in `docs/requirements/claude-code-handoff.md`. Stages 1–2 (Platform Foundation + CRM Workbench, per `docs/mvp-backlog.md`) are implemented as a TypeScript/pnpm monorepo; everything past Stage 2 is still documentation only.
 
 ## Status
 
-Architecture baseline v0.1 (draft, pending product-owner/architecture sign-off — handoff §3). Business requirements baseline v0.9 (`docs/requirements/README.md`). Stage 1 code (tenant provisioning, auth, RBAC/ABAC, tenant isolation, audit log, outbox/inbox) is implemented and tested — see `docs/mvp-backlog.md`'s "Implementation status" note for exactly what's done and what's stubbed. See `docs/requirements/open-questions.md` — no open QST may be silently resolved by inventing business logic (handoff §8).
+Architecture baseline v0.1 (draft, pending product-owner/architecture sign-off — handoff §3). Business requirements baseline v0.9 (`docs/requirements/README.md`). Stage 1 (tenant provisioning, auth, RBAC/ABAC, tenant isolation, audit log, outbox/inbox) and Stage 2 (Contact CRUD with multi-role, duplicate detection, consent lifecycle, unified timeline) are implemented and tested — see `docs/mvp-backlog.md`'s per-stage "Implementation status" notes for exactly what's done and what's stubbed. See `docs/requirements/open-questions.md` — no open QST may be silently resolved by inventing business logic (handoff §8).
 
 ## Getting started (Stage 1 code)
 
@@ -52,16 +52,17 @@ Tests across packages run with `--workspace-concurrency=1` (see root `package.js
   mvp-backlog.md        Sequenced backlog (BL-101..BL-805) tracing to BR/FR/US/ACC/API/EVT/ENT;
                         see its "Implementation status" note for Stage 1 progress
 /apps
-  /api                 Fastify composition root — IMPLEMENTED (Stage 1: tenants, auth, roles, audit)
-  /web                 Frontend shell — not yet implemented (first UI-bearing stage is Stage 2)
+  /api                 Fastify composition root — IMPLEMENTED (tenants, auth, roles, audit, contacts)
+  /web                 Frontend shell — not yet implemented (first UI-bearing work starts Stage 2's UI)
 /services-or-modules
   /identity-tenant     IMPLEMENTED (Stage 1): tenant provisioning, auth, role/permission admin
   /governance          IMPLEMENTED (Stage 1): audit log
-  /relationship-crm /recruitment /network /commerce /customer-success /work-management
+  /relationship-crm    IMPLEMENTED (Stage 2): Contact CRUD/multi-role, dedupe, consent, timeline
+  /recruitment /network /commerce /customer-success /work-management
   /content-learning /engagement /intelligence /integration    not yet implemented (later stages);
                         see each folder's README for its bounded-context scope
 /packages
-  /contracts           IMPLEMENTED: shared Zod DTOs (tenant/identity/audit/event/error envelope)
+  /contracts           IMPLEMENTED: shared Zod DTOs (tenant/identity/audit/event/contact/error envelope)
   /authz               IMPLEMENTED: RBAC+ABAC policy decision point (ADR-0004)
   /eventing            IMPLEMENTED: transactional outbox/inbox + cross-tenant relay (ADR-0005)
   /crypto              IMPLEMENTED: password hashing (scrypt), TOTP MFA, token helpers

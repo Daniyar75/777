@@ -30,6 +30,8 @@ Every item's Definition of Done is `docs/testing/quality-gates.md` §4 (migratio
 | BL-206 Merge/dedupe resolution | US-CONTACT-003 | BL-202 | FR-CONTACT-005 | ENT-006 | API-004 | Financial records excluded from auto-merge |
 | BL-207 Tasks + calendar | US-TASK-001 | BL-103 | FR-TASK-001, FR-CALENDAR-001 | ENT-018, ENT-019 | API-015 | Delegation stays in scope (BRULE-TASK-001) |
 
+**Implementation status (this repo):** BL-201, BL-202, BL-204, BL-205 are implemented — see `services-or-modules/relationship-crm` (Contact CRUD, multi-role, normalized-field duplicate detection, consent lifecycle, unified timeline) and `apps/api/src/routes/contacts.ts`. Object-level ABAC (owned-scope contacts, not just tenant-wide admin actions) is handled by a new `access.ts` helper in that module. Known gaps: BL-202's duplicate detection is a direct normalized-field DB lookup, not the dedicated search index ADR-0007 describes (fine at MVP scale, revisit if lookup latency becomes an issue); BL-203 (import/export) and BL-206 (merge resolution — duplicates surface but are never merged) are not started; BL-207 (Tasks/calendar, Work Management context) is not started; Communication (FR-COMM) is deferred, so the timeline currently merges Activity/Consent/ContactRole only, not messages.
+
 ## Stage 3 — Recruitment & Network (roadmap stage 3)
 
 | Item | US | Depends on | BR/FR | ENT | API/EVT | Exit |

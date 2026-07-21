@@ -4,6 +4,7 @@ import { createTokenService, type TokenService } from "@network-crm/identity-ten
 import { toErrorBody } from "./errors.js";
 import { registerAuditRoutes } from "./routes/audit.js";
 import { registerAuthRoutes } from "./routes/auth.js";
+import { registerContactRoutes } from "./routes/contacts.js";
 import { registerRoleRoutes } from "./routes/roles.js";
 import { registerTenantRoutes } from "./routes/tenants.js";
 
@@ -30,6 +31,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   registerAuthRoutes(app, { db: options.db, tokenService });
   registerRoleRoutes(app, { db: options.db, tokenService });
   registerAuditRoutes(app, { db: options.db, tokenService });
+  registerContactRoutes(app, { db: options.db, tokenService });
 
   app.get("/health", async () => ({ status: "ok" }));
 
