@@ -1,3 +1,5 @@
 # apps/web
 
-Frontend shell and domain features (route/feature modules per bounded context, permission-aware UI). Not yet implemented — scaffolding placeholder pending `docs/architecture` sign-off. See `docs/ui/information-architecture.md`.
+Frontend shell and domain features (route/feature modules per bounded context, permission-aware UI). Stack decision: `docs/architecture/adr/0011-frontend-tech-stack.md` (React + Vite + react-router + React Query, types shared with `@network-crm/contracts`).
+
+Implemented: auth flow (login, TOTP MFA, tenant picker, session persistence/refresh — `src/auth/AuthContext.tsx`), app shell/nav (UI-003), Contacts list/detail with duplicate-candidate review, roles, consent, activity, timeline (UI-004/005), Tasks list/create/complete (UI-013). Run with `pnpm --filter @network-crm/web run dev` (proxies `/api` to `apps/api` on `:3000` in dev, see `vite.config.ts`) — `apps/api` must already be running. Not yet implemented: everything past Stage 1-2's backend scope (funnels, network, orders, ...), delegate-task UI, calendar view, and any screen from `docs/ui/information-architecture.md` whose backend module doesn't exist yet.

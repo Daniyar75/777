@@ -14,3 +14,4 @@ Format: Context / Decision / Consequences / Alternatives considered / Open quest
 | [0008](0008-analytics-read-models.md) | Analytics and read models | proposed |
 | [0009](0009-ai-provider-boundary.md) | AI provider boundary | proposed |
 | [0010](0010-backend-tech-stack.md) | Backend tech stack for the modular monolith | accepted |
+| [0011](0011-frontend-tech-stack.md) | Frontend tech stack for apps/web | accepted |

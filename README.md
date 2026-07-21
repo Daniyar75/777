@@ -1,10 +1,10 @@
 # Network CRM / Network OS
 
-Multi-tenant CRM/SaaS platform for network-marketing businesses. `docs/` holds the architecture and planning baseline produced from the business requirements package in `docs/requirements/`, per the handoff instructions in `docs/requirements/claude-code-handoff.md`. Stages 1–2 (Platform Foundation + CRM Workbench, per `docs/mvp-backlog.md`) are implemented as a TypeScript/pnpm monorepo; everything past Stage 2 is still documentation only.
+Multi-tenant CRM/SaaS platform for network-marketing businesses. `docs/` holds the architecture and planning baseline produced from the business requirements package in `docs/requirements/`, per the handoff instructions in `docs/requirements/claude-code-handoff.md`. Stages 1–2 (Platform Foundation + CRM Workbench, per `docs/mvp-backlog.md`) are implemented as a TypeScript/pnpm monorepo, backend and frontend both; everything past Stage 2 is still documentation only.
 
 ## Status
 
-Architecture baseline v0.1 (draft, pending product-owner/architecture sign-off — handoff §3). Business requirements baseline v0.9 (`docs/requirements/README.md`). Stage 1 (tenant provisioning, auth, RBAC/ABAC, tenant isolation, audit log, outbox/inbox) and Stage 2 (Contact CRUD with multi-role, duplicate detection, consent lifecycle, unified timeline, Task create/complete/delegate) are implemented and tested — see `docs/mvp-backlog.md`'s per-stage "Implementation status" notes for exactly what's done and what's stubbed. See `docs/requirements/open-questions.md` — no open QST may be silently resolved by inventing business logic (handoff §8).
+Architecture baseline v0.1 (draft, pending product-owner/architecture sign-off — handoff §3). Business requirements baseline v0.9 (`docs/requirements/README.md`). Stage 1 (tenant provisioning, auth, RBAC/ABAC, tenant isolation, audit log, outbox/inbox) and Stage 2 (Contact CRUD with multi-role, duplicate detection, consent lifecycle, unified timeline, Task create/complete/delegate, plus a working `apps/web` UI for all of it) are implemented and tested — see `docs/mvp-backlog.md`'s per-stage "Implementation status" notes for exactly what's done and what's stubbed. The full login → contacts → tasks flow has been walked through in a real browser against the real API (Playwright), not just unit-tested. See `docs/requirements/open-questions.md` — no open QST may be silently resolved by inventing business logic (handoff §8).
 
 ## Getting started (Stage 1–2 code)
 
@@ -28,6 +28,11 @@ DATABASE_URL=postgres://<user>:<pw>@localhost:5432/network_crm_test pnpm test
 # run the API locally (see .env.example for required vars)
 cp .env.example .env  # then edit
 pnpm --filter @network-crm/api run dev
+
+# in another terminal: run the web app (proxies /api to the API server on :3000, see apps/web/vite.config.ts)
+pnpm --filter @network-crm/web run dev
+# then open http://localhost:5173 — sign in with a tenant provisioned via POST /tenants
+# (see apps/api/src/routes/tenants.ts; there is no self-service signup UI yet, see ASM-008)
 ```
 
 Tests across packages run with `--workspace-concurrency=1` (see root `package.json`) because integration tests truncate shared tables in one local Postgres database; each package also disables its own file parallelism (`vitest.config.ts`) for the same reason.
@@ -53,7 +58,8 @@ Tests across packages run with `--workspace-concurrency=1` (see root `package.js
                         see its "Implementation status" note for Stage 1 progress
 /apps
   /api                 Fastify composition root — IMPLEMENTED (tenants, auth, roles, audit, contacts, tasks)
-  /web                 Frontend shell — not yet implemented
+  /web                 IMPLEMENTED (React+Vite, ADR-0011): login/MFA/tenant-switch, nav shell,
+                        Contacts (create/dedupe-review/roles/consent/activity/timeline), Tasks
 /services-or-modules
   /identity-tenant     IMPLEMENTED (Stage 1): tenant provisioning, auth, role/permission admin
   /governance          IMPLEMENTED (Stage 1): audit log
@@ -81,7 +87,7 @@ Tests across packages run with `--workspace-concurrency=1` (see root `package.js
 
 1. `docs/requirements/README.md` — index and priority order of the BRD.
 2. `docs/architecture/system-context.md` — C4 system context/containers/components.
-3. `docs/architecture/adr/README.md` — the 10 architecture decisions this baseline rests on (9 product/architecture ADRs pending sign-off, plus ADR-0010 accepted for the Stage 1 tech stack).
+3. `docs/architecture/adr/README.md` — the 11 architecture decisions this baseline rests on (9 product/architecture ADRs pending sign-off, plus ADR-0010/0011 accepted for the Stage 1-2 tech stack).
 4. `docs/mvp-backlog.md` — what gets built, in what order, why, and what's already done.
 5. `docs/requirements/claude-code-handoff.md` — the process rules for turning this into code (module-per-task, traceability gate, what not to implement without confirmation).
 

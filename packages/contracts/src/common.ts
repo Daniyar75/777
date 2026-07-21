@@ -53,6 +53,8 @@ export const ApiError = z.object({
   field_errors: z.array(FieldError).optional(),
   correlation_id: z.string().uuid(),
   retryable: z.boolean(),
+  /** Structured extra data for specific error codes (e.g. DUPLICATE_CONTACT's candidate list). */
+  details: z.unknown().optional(),
 });
 export type ApiError = z.infer<typeof ApiError>;
 
