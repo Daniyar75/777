@@ -393,3 +393,46 @@ export const activities = pgTable(
   },
   (t) => [index("activities_tenant_contact_idx").on(t.tenantId, t.contactId)],
 );
+
+// ---- Stage 2 (BL-207): Work Management ----
+
+export const taskPriority = pgEnum("task_priority", ["low", "normal", "high", "urgent"]);
+export const taskStatus = pgEnum("task_status", ["open", "in_progress", "done", "cancelled"]);
+
+// ---- ENT-018 Task ----
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    type: text("type").notNull().default("general"),
+    // Polymorphic reference (e.g. contact), validated at the application layer per subject
+    // type — not a DB foreign key, matching data-dictionary.md ENT-018/ENT-047's pattern.
+    subjectType: text("subject_type"),
+    subjectId: uuid("subject_id"),
+    title: text("title").notNull(),
+    ownerUserId: uuid("owner_user_id")
+      .notNull()
+      .references(() => users.id),
+    assigneeUserId: uuid("assignee_user_id")
+      .notNull()
+      .references(() => users.id),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    priority: taskPriority("priority").notNull().default("normal"),
+    status: taskStatus("status").notNull().default("open"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    completedBy: uuid("completed_by"),
+    completionEvidence: text("completion_evidence"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid("created_by").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    version: integer("version").notNull().default(0),
+  },
+  (t) => [
+    index("tasks_tenant_owner_idx").on(t.tenantId, t.ownerUserId),
+    index("tasks_tenant_assignee_idx").on(t.tenantId, t.assigneeUserId),
+    index("tasks_tenant_subject_idx").on(t.tenantId, t.subjectType, t.subjectId),
+  ],
+);

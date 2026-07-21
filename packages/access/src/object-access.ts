@@ -6,9 +6,10 @@ import { DomainError } from "@network-crm/contracts";
 /**
  * Object-level RBAC+ABAC check (ADR-0004) for a specific resource instance — unlike
  * identity-tenant's requireTenantPermission (tenant-wide admin actions only), this accepts
- * ownership/assignment attributes so "owned" and similar scopes can be evaluated against a
- * real Contact row. Kept local to this module for now; promote to a shared package once a
- * second module needs the identical shape (no premature abstraction).
+ * ownership/assignment attributes so "owned"/"assigned"/etc. scopes can be evaluated against
+ * a real row. Shared across services-or-modules/* (originally written for relationship-crm,
+ * promoted here once work-management needed the identical shape) so every module's object
+ * checks go through one implementation instead of copies drifting apart.
  */
 export async function requireObjectAccess(
   db: Database,

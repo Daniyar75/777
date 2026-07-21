@@ -1,5 +1,5 @@
 {
-  "name": "@network-crm/relationship-crm",
+  "name": "@network-crm/access",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,17 +16,12 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@network-crm/access": "workspace:*",
     "@network-crm/authz": "workspace:*",
     "@network-crm/contracts": "workspace:*",
     "@network-crm/database": "workspace:*",
-    "@network-crm/eventing": "workspace:*",
-    "@network-crm/governance": "workspace:*",
-    "@network-crm/identity-tenant": "workspace:*",
-    "drizzle-orm": "^0.36.1"
+    "@network-crm/identity-tenant": "workspace:*"
   },
   "devDependencies": {
-    "@network-crm/test-support": "workspace:*",
     "@types/node": "^22.9.0",
     "typescript": "^5.6.3",
     "vitest": "^2.1.4"

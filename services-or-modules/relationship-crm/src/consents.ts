@@ -4,7 +4,7 @@ import { schema, withTenantContext, type Database } from "@network-crm/database"
 import { makeEnvelope, publish } from "@network-crm/eventing";
 import type { ActingIdentity } from "@network-crm/identity-tenant";
 import { DomainError, type Consent, type ConsentStatus } from "@network-crm/contracts";
-import { requireObjectAccess } from "./access.js";
+import { requireObjectAccess } from "@network-crm/access";
 import { mapConsent } from "./mappers.js";
 
 export interface RecordConsentInput {

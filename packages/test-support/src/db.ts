@@ -21,6 +21,7 @@ export function createTestDb(): { db: Database; close: () => Promise<void> } {
 }
 
 const TABLES_IN_TRUNCATE_ORDER = [
+  "tasks",
   "activities",
   "consents",
   "contact_roles",

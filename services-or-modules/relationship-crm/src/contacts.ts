@@ -5,7 +5,7 @@ import { makeEnvelope, publish } from "@network-crm/eventing";
 import { recordAuditEntry } from "@network-crm/governance";
 import type { ActingIdentity } from "@network-crm/identity-tenant";
 import { DomainError, type Contact, type ContactRole, type ContactRoleType } from "@network-crm/contracts";
-import { requireObjectAccess, resolveBestScope } from "./access.js";
+import { requireObjectAccess, resolveBestScope } from "@network-crm/access";
 import { findDuplicateCandidates } from "./dedupe.js";
 import { mapContact, mapContactRole } from "./mappers.js";
 import { normalizeEmail, normalizePhone } from "./normalize.js";

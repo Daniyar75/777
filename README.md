@@ -4,9 +4,9 @@ Multi-tenant CRM/SaaS platform for network-marketing businesses. `docs/` holds t
 
 ## Status
 
-Architecture baseline v0.1 (draft, pending product-owner/architecture sign-off — handoff §3). Business requirements baseline v0.9 (`docs/requirements/README.md`). Stage 1 (tenant provisioning, auth, RBAC/ABAC, tenant isolation, audit log, outbox/inbox) and Stage 2 (Contact CRUD with multi-role, duplicate detection, consent lifecycle, unified timeline) are implemented and tested — see `docs/mvp-backlog.md`'s per-stage "Implementation status" notes for exactly what's done and what's stubbed. See `docs/requirements/open-questions.md` — no open QST may be silently resolved by inventing business logic (handoff §8).
+Architecture baseline v0.1 (draft, pending product-owner/architecture sign-off — handoff §3). Business requirements baseline v0.9 (`docs/requirements/README.md`). Stage 1 (tenant provisioning, auth, RBAC/ABAC, tenant isolation, audit log, outbox/inbox) and Stage 2 (Contact CRUD with multi-role, duplicate detection, consent lifecycle, unified timeline, Task create/complete/delegate) are implemented and tested — see `docs/mvp-backlog.md`'s per-stage "Implementation status" notes for exactly what's done and what's stubbed. See `docs/requirements/open-questions.md` — no open QST may be silently resolved by inventing business logic (handoff §8).
 
-## Getting started (Stage 1 code)
+## Getting started (Stage 1–2 code)
 
 Requires Node.js ≥20, pnpm, and a local PostgreSQL 16 instance.
 
@@ -52,18 +52,20 @@ Tests across packages run with `--workspace-concurrency=1` (see root `package.js
   mvp-backlog.md        Sequenced backlog (BL-101..BL-805) tracing to BR/FR/US/ACC/API/EVT/ENT;
                         see its "Implementation status" note for Stage 1 progress
 /apps
-  /api                 Fastify composition root — IMPLEMENTED (tenants, auth, roles, audit, contacts)
-  /web                 Frontend shell — not yet implemented (first UI-bearing work starts Stage 2's UI)
+  /api                 Fastify composition root — IMPLEMENTED (tenants, auth, roles, audit, contacts, tasks)
+  /web                 Frontend shell — not yet implemented
 /services-or-modules
   /identity-tenant     IMPLEMENTED (Stage 1): tenant provisioning, auth, role/permission admin
   /governance          IMPLEMENTED (Stage 1): audit log
   /relationship-crm    IMPLEMENTED (Stage 2): Contact CRUD/multi-role, dedupe, consent, timeline
-  /recruitment /network /commerce /customer-success /work-management
+  /work-management     IMPLEMENTED (Stage 2): Task create/read/list/complete/delegate
+  /recruitment /network /commerce /customer-success
   /content-learning /engagement /intelligence /integration    not yet implemented (later stages);
                         see each folder's README for its bounded-context scope
 /packages
-  /contracts           IMPLEMENTED: shared Zod DTOs (tenant/identity/audit/event/contact/error envelope)
+  /contracts           IMPLEMENTED: shared Zod DTOs (tenant/identity/audit/event/contact/task/error envelope)
   /authz               IMPLEMENTED: RBAC+ABAC policy decision point (ADR-0004)
+  /access              IMPLEMENTED: object-level ABAC checks shared across services-or-modules/*
   /eventing            IMPLEMENTED: transactional outbox/inbox + cross-tenant relay (ADR-0005)
   /crypto              IMPLEMENTED: password hashing (scrypt), TOTP MFA, token helpers
   /test-support        IMPLEMENTED: shared test DB helpers + entity factories
@@ -71,7 +73,7 @@ Tests across packages run with `--workspace-concurrency=1` (see root `package.js
 /infra
   /database            IMPLEMENTED: Drizzle schema + hand-authored RLS migrations + migration runner
   /deploy /monitoring   not yet implemented
-/tests                  contract/integration/e2e placeholders; security suite's Stage 1 coverage
+/tests                  contract/integration/e2e placeholders; security suite's Stage 1/2 coverage
                         lives with its owning package for now — see tests/security/README.md
 ```
 

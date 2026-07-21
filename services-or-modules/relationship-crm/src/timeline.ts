@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { schema, withTenantContext, type Database } from "@network-crm/database";
 import type { ActingIdentity } from "@network-crm/identity-tenant";
 import { DomainError, type TimelineEntry } from "@network-crm/contracts";
-import { requireObjectAccess } from "./access.js";
+import { requireObjectAccess } from "@network-crm/access";
 
 /**
  * FR-CONTACT-003: unified cross-context history. Stage 2 sources are Activity, Consent, and

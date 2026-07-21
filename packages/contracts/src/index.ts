@@ -5,3 +5,4 @@ export * from "./audit.js";
 export * from "./event.js";
 export * from "./errors.js";
 export * from "./contact.js";
+export * from "./task.js";

@@ -3,7 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { schema, withTenantContext, type Database } from "@network-crm/database";
 import type { ActingIdentity } from "@network-crm/identity-tenant";
 import { DomainError, type Activity } from "@network-crm/contracts";
-import { requireObjectAccess } from "./access.js";
+import { requireObjectAccess } from "@network-crm/access";
 import { mapActivity } from "./mappers.js";
 
 export interface LogActivityInput {

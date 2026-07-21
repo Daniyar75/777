@@ -28,6 +28,11 @@ export const PERMISSION_CATALOG: ReadonlyArray<{ resource: string; action: strin
   { resource: "consent", action: "read" },
   { resource: "activity", action: "create" },
   { resource: "activity", action: "read" },
+  // Stage 2 (BL-207, work-management module)
+  { resource: "task", action: "create" },
+  { resource: "task", action: "read" },
+  { resource: "task", action: "update" },
+  { resource: "task", action: "delegate" },
 ];
 
 function key(resource: string, action: string): string {
@@ -69,6 +74,10 @@ export const COMPANY_ADMIN_GRANTS: ReadonlyArray<{ resource: string; action: str
   { resource: "consent", action: "read" },
   { resource: "activity", action: "create" },
   { resource: "activity", action: "read" },
+  { resource: "task", action: "create" },
+  { resource: "task", action: "read" },
+  { resource: "task", action: "update" },
+  { resource: "task", action: "delegate" },
 ];
 
 export async function findPermissionId(
