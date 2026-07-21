@@ -1,0 +1,332 @@
+asyncapi: 3.0.0
+info:
+  title: Network CRM domain events
+  version: 0.1.0-draft
+  description: >
+    Draft skeleton — envelope and channel list for EVT-001..020 (docs/requirements/event-catalog.md).
+    Publication is transactional-outbox based, consumption is inbox/dedup based (ADR-0005).
+    Payloads below are the documented minimum only; do not add PII fields to a payload without
+    re-checking SEC-015 and the mastership/classification docs.
+
+defaultContentType: application/json
+
+components:
+  schemas:
+    EventEnvelope:
+      type: object
+      required: [event_id, event_type, schema_version, occurred_at, tenant_id, aggregate_type, aggregate_id, aggregate_version, correlation_id, producer]
+      properties:
+        event_id: { type: string, format: uuid }
+        event_type: { type: string }
+        schema_version: { type: string }
+        occurred_at: { type: string, format: date-time }
+        tenant_id: { type: string, format: uuid }
+        aggregate_type: { type: string }
+        aggregate_id: { type: string, format: uuid }
+        aggregate_version: { type: integer }
+        correlation_id: { type: string, format: uuid }
+        causation_id: { type: string, format: uuid, description: "event_id or command id that caused this event, absent for root causes" }
+        producer: { type: string, description: "owning module, e.g. relationship-crm" }
+        payload: { type: object, description: "event-specific, minimized; see per-event schema below" }
+
+  messages:
+    ContactCreated:
+      name: EVT-001-ContactCreated
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [contact_id, source, owner]
+                properties: { contact_id: { type: string }, source: { type: string }, owner: { type: string } }
+    CandidateStageChanged:
+      name: EVT-002-CandidateStageChanged
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [opportunity_id, from_stage, to_stage, reason, actor]
+                properties: { opportunity_id: { type: string }, from_stage: { type: string }, to_stage: { type: string }, reason: { type: string }, actor: { type: string } }
+    PartnerRegistered:
+      name: EVT-003-PartnerRegistered
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [partner_id, contact_id, sponsor_id, joined_at]
+                properties: { partner_id: { type: string }, contact_id: { type: string }, sponsor_id: { type: string, nullable: true }, joined_at: { type: string, format: date-time } }
+    NetworkRelationCreated:
+      name: EVT-004-NetworkRelationCreated
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [child_partner_id, parent_partner_id, relation_type, valid_from, source]
+                properties: { child_partner_id: { type: string }, parent_partner_id: { type: string }, relation_type: { type: string, enum: [sponsor, mentor] }, valid_from: { type: string, format: date }, source: { type: string } }
+    OrderCreated:
+      name: EVT-005-OrderCreated
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [order_id, client_id, currency, total, source]
+                properties: { order_id: { type: string }, client_id: { type: string }, currency: { type: string }, total: { type: number }, source: { type: string } }
+    OrderPaid:
+      name: EVT-006-OrderPaid
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [order_id, paid_amount, payment_refs]
+                properties: { order_id: { type: string }, paid_amount: { type: number }, payment_refs: { type: array, items: { type: string } } }
+    OrderDelivered:
+      name: EVT-007-OrderDelivered
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [order_id, delivered_at, source]
+                properties: { order_id: { type: string }, delivered_at: { type: string, format: date-time }, source: { type: string } }
+    OrderReceived:
+      name: EVT-008-OrderReceived
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [order_id, received_at]
+                properties: { order_id: { type: string }, received_at: { type: string, format: date-time } }
+    FollowUpStarted:
+      name: EVT-009-FollowUpStarted
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [journey_id, order_id, scenario_version]
+                properties: { journey_id: { type: string }, order_id: { type: string }, scenario_version: { type: string } }
+    FollowUpOverdue:
+      name: EVT-010-FollowUpOverdue
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [journey_id, step_id, owner, due_at]
+                properties: { journey_id: { type: string }, step_id: { type: string }, owner: { type: string }, due_at: { type: string, format: date-time } }
+    ProductExpectedToEnd:
+      name: EVT-011-ProductExpectedToEnd
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [client_id, order_item_id, expected_end, formula_version]
+                properties: { client_id: { type: string }, order_item_id: { type: string }, expected_end: { type: string, format: date }, formula_version: { type: string } }
+    RepeatOrderCreated:
+      name: EVT-012-RepeatOrderCreated
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [order_id, source_order_id, confirmation_state]
+                properties: { order_id: { type: string }, source_order_id: { type: string }, confirmation_state: { type: string, enum: [draft, confirmed] } }
+    CourseCompleted:
+      name: EVT-013-CourseCompleted
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [user_id, course_version, score]
+                properties: { user_id: { type: string }, course_version: { type: string }, score: { type: number } }
+    PartnerActivityDecreased:
+      name: EVT-014-PartnerActivityDecreased
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [partner_id, factors, score, window, rule_version]
+                properties: { partner_id: { type: string }, factors: { type: array, items: { type: string } }, score: { type: number }, window: { type: string }, rule_version: { type: string } }
+    RankChanged:
+      name: EVT-015-RankChanged
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [partner_id, old_rank, new_rank, effective_at, source]
+                properties: { partner_id: { type: string }, old_rank: { type: string, nullable: true }, new_rank: { type: string }, effective_at: { type: string, format: date-time }, source: { type: string } }
+    EventAttended:
+      name: EVT-016-EventAttended
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [event_id, participant_id, checkin_source]
+                properties: { event_id: { type: string }, participant_id: { type: string }, checkin_source: { type: string } }
+    AIRecommendationCreated:
+      name: EVT-017-AIRecommendationCreated
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [recommendation_id, use_case, subject_type, subject_id, confidence]
+                properties: { recommendation_id: { type: string }, use_case: { type: string }, subject_type: { type: string }, subject_id: { type: string }, confidence: { type: string, description: "qualitative label unless calibrated per AI-014" } }
+    ConsentChanged:
+      name: EVT-018-ConsentChanged
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [contact_id, purpose, channel, status, effective_at]
+                properties: { contact_id: { type: string }, purpose: { type: string }, channel: { type: string }, status: { type: string, enum: [granted, withdrawn, expired] }, effective_at: { type: string, format: date-time } }
+    ComplaintCreated:
+      name: EVT-019-ComplaintCreated
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [case_id, client_id, severity]
+                properties: { case_id: { type: string }, client_id: { type: string }, severity: { type: string }, related_order_id: { type: string, nullable: true }, related_product_id: { type: string, nullable: true } }
+    TaskCompleted:
+      name: EVT-020-TaskCompleted
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventEnvelope'
+          - type: object
+            properties:
+              payload:
+                type: object
+                required: [task_id, subject_type, subject_id, completed_at]
+                properties: { task_id: { type: string }, subject_type: { type: string }, subject_id: { type: string }, completed_at: { type: string, format: date-time }, result: { type: string, nullable: true } }
+
+channels:
+  contact.created:
+    address: tenant.{tenantId}.relationship-crm.contact.created
+    messages: { contactCreated: { $ref: '#/components/messages/ContactCreated' } }
+  candidate.stage-changed:
+    address: tenant.{tenantId}.recruitment.opportunity.stage-changed
+    messages: { candidateStageChanged: { $ref: '#/components/messages/CandidateStageChanged' } }
+  partner.registered:
+    address: tenant.{tenantId}.network.partner.registered
+    messages: { partnerRegistered: { $ref: '#/components/messages/PartnerRegistered' } }
+  network.relation-created:
+    address: tenant.{tenantId}.network.relation.created
+    messages: { networkRelationCreated: { $ref: '#/components/messages/NetworkRelationCreated' } }
+  order.created:
+    address: tenant.{tenantId}.commerce.order.created
+    messages: { orderCreated: { $ref: '#/components/messages/OrderCreated' } }
+  order.paid:
+    address: tenant.{tenantId}.commerce.order.paid
+    messages: { orderPaid: { $ref: '#/components/messages/OrderPaid' } }
+  order.delivered:
+    address: tenant.{tenantId}.commerce.order.delivered
+    messages: { orderDelivered: { $ref: '#/components/messages/OrderDelivered' } }
+  order.received:
+    address: tenant.{tenantId}.commerce.order.received
+    messages: { orderReceived: { $ref: '#/components/messages/OrderReceived' } }
+  followup.started:
+    address: tenant.{tenantId}.customer-success.journey.started
+    messages: { followUpStarted: { $ref: '#/components/messages/FollowUpStarted' } }
+  followup.overdue:
+    address: tenant.{tenantId}.customer-success.journey.step-overdue
+    messages: { followUpOverdue: { $ref: '#/components/messages/FollowUpOverdue' } }
+  product.expected-to-end:
+    address: tenant.{tenantId}.customer-success.repeat.expected-to-end
+    messages: { productExpectedToEnd: { $ref: '#/components/messages/ProductExpectedToEnd' } }
+  repeat-order.created:
+    address: tenant.{tenantId}.commerce.order.repeat-created
+    messages: { repeatOrderCreated: { $ref: '#/components/messages/RepeatOrderCreated' } }
+  course.completed:
+    address: tenant.{tenantId}.content-learning.course.completed
+    messages: { courseCompleted: { $ref: '#/components/messages/CourseCompleted' } }
+  partner.activity-decreased:
+    address: tenant.{tenantId}.intelligence.partner.activity-decreased
+    messages: { partnerActivityDecreased: { $ref: '#/components/messages/PartnerActivityDecreased' } }
+  rank.changed:
+    address: tenant.{tenantId}.network.rank.changed
+    messages: { rankChanged: { $ref: '#/components/messages/RankChanged' } }
+  event.attended:
+    address: tenant.{tenantId}.work-management.event.attended
+    messages: { eventAttended: { $ref: '#/components/messages/EventAttended' } }
+  ai.recommendation-created:
+    address: tenant.{tenantId}.intelligence.ai.recommendation-created
+    messages: { aiRecommendationCreated: { $ref: '#/components/messages/AIRecommendationCreated' } }
+  consent.changed:
+    address: tenant.{tenantId}.relationship-crm.consent.changed
+    messages: { consentChanged: { $ref: '#/components/messages/ConsentChanged' } }
+  complaint.created:
+    address: tenant.{tenantId}.customer-success.case.created
+    messages: { complaintCreated: { $ref: '#/components/messages/ComplaintCreated' } }
+  task.completed:
+    address: tenant.{tenantId}.work-management.task.completed
+    messages: { taskCompleted: { $ref: '#/components/messages/TaskCompleted' } }
+
+operations:
+  publishContactCreated:
+    action: send
+    channel: { $ref: '#/channels/contact.created' }
+  consumeContactCreated:
+    action: receive
+    channel: { $ref: '#/channels/contact.created' }
+  # Additional publish/consume operation pairs follow the same pattern for every channel above;
+  # omitted here for brevity — generate mechanically per docs/requirements/event-catalog.md
+  # "Основные потребители" column when wiring real consumers.
+
+# Delivery contract (applies to every channel above, ADR-0005):
+# - at-least-once delivery; consumers dedupe on event_id via an inbox table.
+# - ordering guaranteed only within one aggregate_id stream.
+# - schema changes are backward-compatible within schema_version; breaking changes ship as a new
+#   event_type/major version with both versions live during a deprecation window.
+# - failed consumption after retry+backoff lands in a per-consumer DLQ with a replay runbook.
