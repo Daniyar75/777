@@ -1,0 +1,708 @@
+openapi: 3.1.0
+info:
+  title: Network CRM / Network OS API
+  version: 0.1.0-draft
+  description: >
+    Draft skeleton only — endpoint groups and shared contracts, not final request/response
+    schemas. Traces to docs/requirements/api-specification.md (API-001..024). Do not generate
+    server code from this file until an ADR-reviewed team has filled in schemas per endpoint
+    and resolved the QSTs referenced inline. All paths are tenant-scoped via the authenticated
+    session (see docs/architecture/adr/0002-tenancy-and-storage.md); tenant_id is never a
+    client-supplied path/query parameter used for authorization.
+servers:
+  - url: https://{tenant}.api.example.invalid/v1
+    description: Placeholder host pattern — final domain/routing decided with ADR-0002/White Label design.
+    variables:
+      tenant:
+        default: demo
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived access token issued by /auth (ADR-0003). Carries resolved tenant membership context.
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: >
+        Required for create/transition/payment/webhook/import operations (api-specification.md §1).
+        Scoped server-side to tenant + actor + operation + canonical payload hash.
+      schema:
+        type: string
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: Optimistic-locking ETag/version check for update operations.
+      schema:
+        type: string
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+    PageSize:
+      name: page_size
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    Sort:
+      name: sort
+      in: query
+      required: false
+      description: Must be one of the allow-listed sort fields for the resource (api-specification.md §1).
+      schema:
+        type: string
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message, correlation_id, retryable]
+      properties:
+        code:
+          type: string
+          description: See docs/api/error-catalog.md for the full enumerated list.
+        message:
+          type: string
+          description: Safe, user-displayable message. Never includes PII or internal detail.
+        field_errors:
+          type: array
+          items:
+            type: object
+            required: [field, code]
+            properties:
+              field: { type: string }
+              code: { type: string }
+              message: { type: string }
+        correlation_id:
+          type: string
+          format: uuid
+        retryable:
+          type: boolean
+    Page:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: {}
+        next_cursor:
+          type: string
+          nullable: true
+    AsyncJob:
+      type: object
+      description: Envelope for bulk/import/export/long-running operations (api-specification.md §2 bulk/import rule).
+      required: [job_id, status]
+      properties:
+        job_id: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [queued, running, partial, succeeded, failed]
+        report_url:
+          type: string
+          nullable: true
+
+  responses:
+    Error:
+      description: Standard error envelope.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+tags:
+  - name: auth
+    description: API-001 — /auth, /sessions
+  - name: tenants
+    description: API-002 — /tenants, /memberships
+  - name: identity
+    description: API-003 — /users, /roles, /permissions
+  - name: contacts
+    description: API-004/005 — /contacts and role/consent/timeline sub-resources
+  - name: funnels
+    description: API-006 — /funnels, /stages, /opportunities
+  - name: projections
+    description: API-007 — /candidates, /clients, /partners
+  - name: network
+    description: API-008/009 — /network/*, /ranks
+  - name: catalog
+    description: API-010/011 — /products, /categories, /prices, /documents, /recommendations
+  - name: orders
+    description: API-012/013 — /orders, /payments, /deliveries, /returns
+  - name: customer-success
+    description: API-014 — /journeys, /follow-up-scenarios, /cases
+  - name: work-management
+    description: API-015 — /tasks, /calendar, /activities, /communications
+  - name: events
+    description: API-016 — /events, /participants
+  - name: content
+    description: API-017/018 — /content, /knowledge, /courses, /lessons, /tests, /assignments
+  - name: notifications
+    description: API-019 — /notifications, /preferences
+  - name: analytics
+    description: API-020 — /analytics, /reports
+  - name: ai
+    description: API-021 — /ai/recommendations, /ai/drafts, /ai/feedback
+  - name: integrations
+    description: API-022 — /integrations, /sync-jobs, /webhooks
+  - name: automations
+    description: API-023 — /automations, /executions
+  - name: governance
+    description: API-024 — /audit, /data-requests
+
+paths:
+  # ---- API-001 auth/sessions ----
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Authenticate and start a session (ADR-0003). Anti-enumeration error behavior.
+      responses:
+        '200': { description: Session/token issued }
+        default: { $ref: '#/components/responses/Error' }
+  /auth/mfa/verify:
+    post:
+      tags: [auth]
+      summary: Complete MFA challenge.
+      responses:
+        '200': { description: Session upgraded to MFA-verified }
+        default: { $ref: '#/components/responses/Error' }
+  /sessions/refresh:
+    post:
+      tags: [auth]
+      summary: Rotate refresh token (ADR-0003 reuse-detection).
+      responses:
+        '200': { description: New access/refresh token pair }
+        default: { $ref: '#/components/responses/Error' }
+  /sessions:
+    get:
+      tags: [auth]
+      summary: List active sessions/devices for the current user (SEC-006).
+      responses:
+        '200': { description: Session list }
+    delete:
+      tags: [auth]
+      summary: Revoke a session/device.
+      responses:
+        '204': { description: Revoked }
+
+  # ---- API-002 tenants/memberships ----
+  /tenants:
+    post:
+      tags: [tenants]
+      summary: Provision a tenant (platform-owner only, US-PLATFORM-001). Rollback on incomplete provision.
+      responses:
+        '201': { description: Tenant created }
+        default: { $ref: '#/components/responses/Error' }
+  /memberships:
+    get:
+      tags: [tenants]
+      summary: List the current user's tenant memberships (QST-017).
+      responses:
+        '200': { description: Membership list }
+  /memberships/{id}/switch:
+    post:
+      tags: [tenants]
+      summary: Switch active tenant context for the session.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: New tenant-scoped session context }
+
+  # ---- API-003 identity ----
+  /users:
+    get:
+      tags: [identity]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200': { description: Paged user list }
+  /roles:
+    get:
+      tags: [identity]
+      responses:
+        '200': { description: Role list }
+    post:
+      tags: [identity]
+      summary: Create a scoped role (FR-ADMIN-001). Blocked if it would exceed the creator's own privileges.
+      responses:
+        '201': { description: Role created }
+        default: { $ref: '#/components/responses/Error' }
+  /roles/{id}/permissions:
+    put:
+      tags: [identity]
+      summary: Assign scoped permissions to a role (privilege-escalation check, roles-and-permissions.md §4).
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Updated }
+        default: { $ref: '#/components/responses/Error' }
+
+  # ---- API-004/005 contacts ----
+  /contacts:
+    get:
+      tags: [contacts]
+      summary: List/search contacts (FR-CONTACT-008), field masking applied per ABAC scope.
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200': { description: Paged, masked contact list }
+    post:
+      tags: [contacts]
+      summary: Create contact; duplicate check runs before persist (BRULE-CONTACT-003, ACC-001).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201': { description: Created }
+        '409': { description: DUPLICATE_CONTACT candidate found, not auto-created }
+        default: { $ref: '#/components/responses/Error' }
+  /contacts/{id}:
+    get:
+      tags: [contacts]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Contact detail, masked per scope }
+        default: { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [contacts]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200': { description: Updated }
+        '409': { description: VERSION_CONFLICT }
+        default: { $ref: '#/components/responses/Error' }
+  /contacts/{id}/archive:
+    post:
+      tags: [contacts]
+      summary: Archive (distinct from soft-delete/anonymize/hard-delete — BR-025).
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Archived }
+  /contacts/{id}/restore:
+    post:
+      tags: [contacts]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Restored }
+  /contacts/merge:
+    post:
+      tags: [contacts]
+      summary: Merge duplicates (FR-CONTACT-005). Financial records never auto-merged.
+      responses:
+        '200': { description: Merge result with alias map and audit reference }
+        default: { $ref: '#/components/responses/Error' }
+  /contacts/import:
+    post:
+      tags: [contacts]
+      summary: Async import job — column mapping, dry-run, partial success, error file (FR-CORE-006).
+      responses:
+        '202':
+          description: AsyncJob accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AsyncJob' }
+  /contacts/export:
+    post:
+      tags: [contacts]
+      summary: Async export honoring current filters, allowed fields, masking, audit (FR-CORE-007, SEC-014).
+      responses:
+        '202':
+          description: AsyncJob accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AsyncJob' }
+  /contacts/{id}/roles:
+    post:
+      tags: [contacts]
+      summary: Add a ContactRole without duplicating shared history (BR-001, FR-CONTACT-002).
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '201': { description: Role added }
+  /contacts/{id}/consents:
+    get:
+      tags: [contacts]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Consent history }
+    post:
+      tags: [contacts]
+      summary: Record grant/withdrawal (SEC-011, ACC-018).
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '201': { description: Consent event recorded }
+  /contacts/{id}/timeline:
+    get:
+      tags: [contacts]
+      summary: Unified cross-context history (FR-CONTACT-003).
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Timeline entries, masked per scope }
+
+  # ---- API-006 funnels/opportunities ----
+  /funnels:
+    post:
+      tags: [funnels]
+      summary: Create a new versioned Funnel (FR-FUNNEL-001).
+      responses:
+        '201': { description: Draft funnel version created }
+  /funnels/{id}/activate:
+    post:
+      tags: [funnels]
+      summary: Activate a funnel version; prior StageHistory references remain intact (ACC-004).
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Activated }
+  /opportunities:
+    post:
+      tags: [funnels]
+      responses:
+        '201': { description: Opportunity created }
+  /opportunities/{id}/transitions:
+    post:
+      tags: [funnels]
+      summary: Atomic stage transition (FR-FUNNEL-003). Idempotent on repeated key (ACC-005/BRULE-FUNNEL-001).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Transition applied, StageHistory recorded }
+        '409': { description: INVALID_STAGE_TRANSITION }
+        default: { $ref: '#/components/responses/Error' }
+
+  # ---- API-007 projections ----
+  /candidates/{id}:
+    get: { tags: [projections], parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { '200': { description: Candidate projection } } }
+  /clients/{id}:
+    get: { tags: [projections], parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { '200': { description: Client projection } } }
+  /partners/{id}:
+    get: { tags: [projections], parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { '200': { description: Partner projection } } }
+  /partners/register:
+    post:
+      tags: [projections]
+      summary: UC-001 registration. Verifies external partner_id uniqueness where mastered externally (mastership-matrix.md).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201': { description: Partner created/linked, onboarding route started, PartnerRegistered published }
+        '409': { description: DUPLICATE_PARTNER }
+        default: { $ref: '#/components/responses/Error' }
+
+  # ---- API-008/009 network ----
+  /network/nodes:
+    get:
+      tags: [network]
+      summary: Lazy-loaded tree query (FR-NETWORK-002), scope-filtered (BRULE-NETWORK-005).
+      responses:
+        '200': { description: Paged nodes }
+  /network/branches/{nodeId}:
+    get:
+      tags: [network]
+      parameters: [{ name: nodeId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Branch aggregate with computed-at metadata (FR-NETWORK-007) }
+  /network/relations:
+    post:
+      tags: [network]
+      summary: Create sponsor/mentor relation; rejects cycles/self-sponsorship/second-active-sponsor (BRULE-NETWORK-002/BR-019, ACC-007).
+      responses:
+        '201': { description: Relation version created }
+        '409': { description: NETWORK_CYCLE }
+        default: { $ref: '#/components/responses/Error' }
+  /network/snapshots:
+    get:
+      tags: [network]
+      summary: Structure as of a given date.
+      responses:
+        '200': { description: Snapshot }
+  /network/sync-jobs:
+    post:
+      tags: [network]
+      summary: Import/reconcile external structure (US-ADMIN-003), dry-run supported.
+      responses:
+        '202':
+          description: AsyncJob accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AsyncJob' }
+  /ranks:
+    get: { tags: [network], responses: { '200': { description: Rank dictionary } } }
+  /partners/{id}/rank-history:
+    get:
+      tags: [network]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Append-only rank history, no overwrite (BR-021) }
+
+  # ---- API-010/011 catalog ----
+  /products:
+    get: { tags: [catalog], responses: { '200': { description: Product list, localized } } }
+    post:
+      tags: [catalog]
+      summary: Create product (draft->review->approved->retired workflow, FR-PRODUCT-003).
+      responses:
+        '201': { description: Draft product created }
+  /products/{id}/prices/effective:
+    get:
+      tags: [catalog]
+      summary: Resolve effective price for a segment/rank/region/date (FR-PRODUCT-002, overlap-checked).
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Effective price }
+        '409': { description: PRICE_EXPIRED }
+  /recommendations/products:
+    post:
+      tags: [catalog]
+      summary: Questionnaire-based recommendation (FR-REC-001/002). Refuses without an approved source (FR-REC-003).
+      responses:
+        '200': { description: Recommendation with citations }
+        '422': { description: No approved source — specialist referral returned instead }
+
+  # ---- API-012/013 orders/payments/deliveries/returns ----
+  /orders:
+    post:
+      tags: [orders]
+      summary: Create order (FR-ORDER-001), snapshots price/discount/tax/name (BR-028).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201': { description: Order created as draft }
+        default: { $ref: '#/components/responses/Error' }
+  /orders/{id}/transitions:
+    post:
+      tags: [orders]
+      summary: State-machine transition (FR-ORDER-004). Cancellation after payment only via allowed refund/adjust process (FR-ORDER-007).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Transition applied }
+        '409': { description: ORDER_STATE_CONFLICT }
+        default: { $ref: '#/components/responses/Error' }
+  /orders/{id}:
+    delete:
+      tags: [orders]
+      summary: Disabled for paid+ orders by design (BRULE-ORDER-001, ACC-010) — always returns error for non-draft orders.
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        default: { $ref: '#/components/responses/Error' }
+  /payments/webhooks/{provider}:
+    post:
+      tags: [orders]
+      summary: Idempotent provider webhook intake, signature-verified (SEC-009, BRULE-ORDER-003).
+      parameters: [{ name: provider, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Accepted (idempotent) }
+        '401': { description: Invalid signature }
+  /deliveries/{id}:
+    get: { tags: [orders], parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { '200': { description: Delivery status } } }
+  /returns:
+    post:
+      tags: [orders]
+      summary: Reference order lines, qty ≤ fulfilled qty (ENT-030 constraint).
+      responses:
+        '201': { description: Return requested }
+
+  # ---- API-014 customer success ----
+  /journeys:
+    get: { tags: [customer-success], responses: { '200': { description: Journey list, scope-filtered } } }
+  /follow-up-scenarios:
+    post:
+      tags: [customer-success]
+      summary: Configure versioned scenario (FR-FOLLOW-001).
+      responses:
+        '201': { description: Draft scenario created }
+  /journeys/{id}/steps/{stepId}/complete:
+    post:
+      tags: [customer-success]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: stepId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Step completed with result }
+  /cases:
+    post:
+      tags: [customer-success]
+      summary: Register complaint/adverse reaction (UC-004). Suspends incompatible marketing steps, escalates (BRULE-FOLLOW-002).
+      responses:
+        '201': { description: Case created, escalation routed }
+
+  # ---- API-015 work management / communications ----
+  /tasks:
+    get: { tags: [work-management], parameters: [{ $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/PageSize' }], responses: { '200': { description: Task list } } }
+    post: { tags: [work-management], responses: { '201': { description: Task created } } }
+  /tasks/{id}/delegate:
+    post:
+      tags: [work-management]
+      summary: Reassign within scope only (BRULE-TASK-001).
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Delegated }
+        default: { $ref: '#/components/responses/Error' }
+  /calendar:
+    get: { tags: [work-management], responses: { '200': { description: Unified task/event/meeting calendar view } } }
+  /communications:
+    post:
+      tags: [work-management]
+      summary: Log communication; consent/quiet-hours/template/limits checked before external send (FR-COMM-003).
+      responses:
+        '201': { description: Communication logged }
+        '422': { description: CONSENT_REQUIRED }
+
+  # ---- API-016 events ----
+  /events:
+    post: { tags: [events], responses: { '201': { description: Event created } } }
+  /events/{id}/participants:
+    post:
+      tags: [events]
+      summary: Register/check-in participant (capacity/scope checked).
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '201': { description: Participant registered }
+
+  # ---- API-017/018 content & learning ----
+  /content:
+    get: { tags: [content], responses: { '200': { description: Approved, non-expired content only for non-privileged callers (FR-CONTENT-002) } } }
+    post: { tags: [content], summary: Create draft content item (workflow-gated). , responses: { '201': { description: Draft created } } }
+  /courses/{id}/assignments:
+    post:
+      tags: [content]
+      summary: Assign course to user/cohort (prerequisites/expiry validated, FR-LMS-003).
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '201': { description: Assignment created }
+
+  # ---- API-019 notifications ----
+  /notifications:
+    get: { tags: [notifications], responses: { '200': { description: Inbox } } }
+  /notifications/preferences:
+    put:
+      tags: [notifications]
+      summary: Channel/category/frequency/quiet-hours; mandatory service notices cannot be fully disabled (FR-NOTIF-002).
+      responses:
+        '200': { description: Preferences saved }
+
+  # ---- API-020 analytics ----
+  /analytics/metrics/{kpiId}:
+    get:
+      tags: [analytics]
+      summary: Query a KPI (KPI-001..018) with definition/period/source/as_of metadata (BRULE-ANALYTICS-001).
+      parameters: [{ name: kpiId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Metric result with definition/source disclosure }
+  /reports/export:
+    post:
+      tags: [analytics]
+      summary: Async export; re-validates row/field access (FR-ANALYTICS-003).
+      responses:
+        '202':
+          description: AsyncJob accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AsyncJob' }
+
+  # ---- API-021 AI ----
+  /ai/recommendations:
+    post:
+      tags: [ai]
+      summary: Invoke a registered AI use case (ADR-0009). Scope inherited from caller (BRULE-AI-002).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Recommendation with citations/audit reference }
+        '403': { description: AI_POLICY_BLOCKED }
+        default: { $ref: '#/components/responses/Error' }
+  /ai/recommendations/{id}/feedback:
+    post:
+      tags: [ai]
+      summary: Accept/edit/reject with reason (AI-005, BR-029, ACC-015).
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Feedback recorded }
+
+  # ---- API-022 integrations ----
+  /integrations:
+    get: { tags: [integrations], responses: { '200': { description: Admin-only integration config list } } }
+  /integrations/{id}/sync-jobs:
+    post:
+      tags: [integrations]
+      summary: Trigger sync (integrations.md §2 reconciliation contract).
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '202':
+          description: AsyncJob accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AsyncJob' }
+  /webhooks/{integrationId}:
+    post:
+      tags: [integrations]
+      summary: Inbound webhook; signature/timestamp/idempotency-key verified before processing.
+      parameters: [{ name: integrationId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Accepted }
+        '401': { description: Invalid signature }
+  /sync-jobs/{id}/dead-letter/replay:
+    post:
+      tags: [integrations]
+      summary: Replay a DLQ'd sync entry (admin only).
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Replay accepted }
+
+  # ---- API-023 automations ----
+  /automations:
+    post:
+      tags: [automations]
+      summary: Draft trigger/conditions/actions definition (BR-030, versioned).
+      responses:
+        '201': { description: Draft automation created }
+  /automations/{id}/dry-run:
+    post:
+      tags: [automations]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Dry-run affected-record preview, no side effects }
+  /automations/{id}/activate:
+    post:
+      tags: [automations]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Activated }
+  /automations/{id}/executions:
+    get:
+      tags: [automations]
+      summary: Execution log (cycle/rate-limit guarded, BRULE-AUTO-002).
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Execution log }
+
+  # ---- API-024 governance ----
+  /audit:
+    get:
+      tags: [governance]
+      summary: Search permitted audit entries (SEC-007, ACC-020). Before/after fields masked by right.
+      responses:
+        '200': { description: Audit entries }
+  /data-requests:
+    post:
+      tags: [governance]
+      summary: Access/rectification/export/restriction/erasure request (SEC-012, jurisdiction-profile dependent).
+      responses:
+        '201': { description: Data request registered }
