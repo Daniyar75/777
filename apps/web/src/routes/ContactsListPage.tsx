@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import type { Contact, CreateContactRequest, DuplicateCandidate } from "@network-crm/contracts";
-import { apiGet, apiPost, HttpError } from "../api/client.js";
+import { apiGet, apiPost, apiRequestText, HttpError } from "../api/client.js";
 import { EmptyState, ErrorState, LoadingState } from "../components/StatusStates.js";
 
 /** UI-004 Contacts: list + create, including the ACC-001 duplicate-review flow. */
@@ -47,9 +47,42 @@ export function ContactsListPage() {
     });
   }
 
+  const [exportError, setExportError] = useState<unknown>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function exportCsv() {
+    setExportError(null);
+    setExporting(true);
+    try {
+      const csv = await apiRequestText("/contacts/export");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "contacts.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="stack">
-      <h1 style={{ margin: 0 }}>Контакты</h1>
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <h1 style={{ margin: 0 }}>Контакты</h1>
+        <div className="row">
+          <Link to="/contacts/import" className="btn btn-secondary">
+            Импорт
+          </Link>
+          <button type="button" className="btn btn-secondary" disabled={exporting} onClick={() => void exportCsv()}>
+            {exporting ? "Экспортируем…" : "Экспорт CSV"}
+          </button>
+        </div>
+      </div>
+      {exportError ? <ErrorState error={exportError} /> : null}
 
       <form className="card stack" onSubmit={(e) => submit(e)}>
         <h2 style={{ margin: 0, fontSize: "1rem" }}>Новый контакт</h2>

@@ -313,6 +313,10 @@ export const contacts = pgTable(
     normalizedEmail: text("normalized_email"),
     externalId: text("external_id"),
     status: contactStatus("status").notNull().default("active"),
+    // BR-024/FR-CONTACT-005: set when this contact lost a merge, pointing at the survivor —
+    // the "alias/map" the business requirement asks a reversible merge to keep. A contact
+    // with this set is always also archived; the two are set together, never independently.
+    mergedIntoId: uuid("merged_into_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     createdBy: uuid("created_by").notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -324,6 +328,7 @@ export const contacts = pgTable(
     index("contacts_tenant_owner_idx").on(t.tenantId, t.ownerUserId),
     index("contacts_tenant_phone_idx").on(t.tenantId, t.normalizedPhone),
     index("contacts_tenant_email_idx").on(t.tenantId, t.normalizedEmail),
+    index("contacts_tenant_merged_into_idx").on(t.tenantId, t.mergedIntoId),
   ],
 );
 

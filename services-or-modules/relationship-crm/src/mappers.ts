@@ -18,6 +18,7 @@ export function mapContact(row: typeof schema.contacts.$inferSelect): Contact {
     updated_at: row.updatedAt.toISOString(),
     version: row.version,
     archived_at: row.archivedAt ? row.archivedAt.toISOString() : null,
+    merged_into_id: row.mergedIntoId,
   };
 }
 

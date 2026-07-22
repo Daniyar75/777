@@ -5,3 +5,4 @@ export * from "./policy-context.js";
 export * from "./permission-catalog.js";
 export * from "./auth.js";
 export * from "./roles.js";
+export * from "./memberships.js";

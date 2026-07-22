@@ -1,18 +1,30 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { AddContactRoleRequest, Contact, CreateContactRequest, LogActivityRequest, RecordConsentRequest } from "@network-crm/contracts";
+import {
+  AddContactRoleRequest,
+  Contact,
+  CreateContactRequest,
+  ImportContactsRequest,
+  LogActivityRequest,
+  MergeContactsRequest,
+  RecordConsentRequest,
+} from "@network-crm/contracts";
 import {
   addContactRole,
   archiveContact,
   createContact,
+  exportContactsCsv,
   getContact,
   getTimeline,
+  importContacts,
   listActivities,
   listConsents,
+  listContactDuplicates,
   listContactRoles,
   listContacts,
   logActivity,
+  mergeContacts,
   recordConsent,
 } from "@network-crm/relationship-crm";
 import type { TokenService } from "@network-crm/identity-tenant";
@@ -122,5 +134,36 @@ export function registerContactRoutes(app: FastifyInstance, deps: { db: Database
     const identity = requireTenantIdentity(await requireIdentity(request.headers.authorization, deps.tokenService));
     const { id } = IdParam.parse(request.params);
     return { items: await getTimeline(deps.db, identity, id) };
+  });
+
+  // BL-203 (FR-CORE-006): column mapping is a client-side step (apps/web maps CSV headers onto
+  // ImportContactRow before calling this) — the API only ever sees already-mapped rows.
+  app.post("/contacts/import", async (request) => {
+    const identity = requireTenantIdentity(await requireIdentity(request.headers.authorization, deps.tokenService));
+    const input = ImportContactsRequest.parse(request.body);
+    return importContacts(deps.db, identity, { mode: input.mode, onDuplicate: input.on_duplicate, rows: input.rows }, randomUUID());
+  });
+
+  // BL-203 (FR-CORE-007): same scope filter as GET /contacts, no separate wider export scope.
+  app.get("/contacts/export", async (request, reply) => {
+    const identity = requireTenantIdentity(await requireIdentity(request.headers.authorization, deps.tokenService));
+    const csv = await exportContactsCsv(deps.db, identity, randomUUID());
+    reply.header("Content-Type", "text/csv; charset=utf-8");
+    reply.header("Content-Disposition", 'attachment; filename="contacts.csv"');
+    return csv;
+  });
+
+  // BL-206 (FR-CONTACT-005)
+  app.get("/contacts/:id/duplicates", async (request) => {
+    const identity = requireTenantIdentity(await requireIdentity(request.headers.authorization, deps.tokenService));
+    const { id } = IdParam.parse(request.params);
+    return { items: await listContactDuplicates(deps.db, identity, id) };
+  });
+
+  app.post("/contacts/:id/merge", async (request) => {
+    const identity = requireTenantIdentity(await requireIdentity(request.headers.authorization, deps.tokenService));
+    const { id } = IdParam.parse(request.params);
+    const input = MergeContactsRequest.parse(request.body);
+    return Contact.parse(await mergeContacts(deps.db, identity, id, input, randomUUID()));
   });
 }

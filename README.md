@@ -59,11 +59,13 @@ Tests across packages run with `--workspace-concurrency=1` (see root `package.js
 /apps
   /api                 Fastify composition root — IMPLEMENTED (tenants, auth, roles, audit, contacts, tasks)
   /web                 IMPLEMENTED (React+Vite, ADR-0011): login/MFA/tenant-switch, nav shell,
-                        Contacts (create/dedupe-review/roles/consent/activity/timeline), Tasks
+                        Contacts (create/dedupe-review/roles/consent/activity/timeline/import/
+                        export/merge), Tasks (create/complete/delegate)
 /services-or-modules
   /identity-tenant     IMPLEMENTED (Stage 1): tenant provisioning, auth, role/permission admin
   /governance          IMPLEMENTED (Stage 1): audit log
-  /relationship-crm    IMPLEMENTED (Stage 2): Contact CRUD/multi-role, dedupe, consent, timeline
+  /relationship-crm    IMPLEMENTED (Stage 2): Contact CRUD/multi-role, dedupe, consent, timeline,
+                        CSV import/export, merge/dedupe resolution
   /work-management     IMPLEMENTED (Stage 2): Task create/read/list/complete/delegate
   /recruitment /network /commerce /customer-success
   /content-learning /engagement /intelligence /integration    not yet implemented (later stages);

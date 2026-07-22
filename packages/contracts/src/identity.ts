@@ -53,6 +53,16 @@ export const Membership = z.object({
 });
 export type Membership = z.infer<typeof Membership>;
 
+/** Lightweight membership+user projection for pickers (e.g. task delegation assignee list). */
+export const MembershipSummary = z.object({
+  membership_id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  login_identity: z.string().email(),
+  display_name: z.string(),
+  status: z.enum(["active", "suspended"]),
+});
+export type MembershipSummary = z.infer<typeof MembershipSummary>;
+
 // ---- Auth flow DTOs (ADR-0003) ----
 
 export const LoginRequest = z.object({

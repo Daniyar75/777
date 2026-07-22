@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CreateTaskRequest, Task, TaskPriority } from "@network-crm/contracts";
+import type { CreateTaskRequest, MembershipSummary, Task, TaskPriority } from "@network-crm/contracts";
 import { apiGet, apiPost } from "../api/client.js";
 import { EmptyState, ErrorState, LoadingState } from "../components/StatusStates.js";
 
@@ -28,6 +28,24 @@ export function TasksListPage() {
   const completeMutation = useMutation({
     mutationFn: (taskId: string) => apiPost<Task>(`/tasks/${taskId}/complete`, undefined),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+  });
+
+  const membershipsQuery = useQuery({
+    queryKey: ["memberships"],
+    queryFn: () => apiGet<{ items: MembershipSummary[] }>("/memberships"),
+  });
+
+  const [delegatingTaskId, setDelegatingTaskId] = useState<string | null>(null);
+  const [assigneeUserId, setAssigneeUserId] = useState("");
+
+  const delegateMutation = useMutation({
+    mutationFn: (input: { taskId: string; assigneeUserId: string }) =>
+      apiPost<Task>(`/tasks/${input.taskId}/delegate`, { assignee_user_id: input.assigneeUserId }),
+    onSuccess: () => {
+      setDelegatingTaskId(null);
+      setAssigneeUserId("");
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
   });
 
   function onSubmit(e: FormEvent) {
@@ -72,6 +90,7 @@ export function TasksListPage() {
               <th>Приоритет</th>
               <th>Статус</th>
               <th>Срок</th>
+              <th>Исполнитель</th>
               <th></th>
             </tr>
           </thead>
@@ -87,15 +106,52 @@ export function TasksListPage() {
                 </td>
                 <td>{t.due_at ? new Date(t.due_at).toLocaleDateString("ru-RU") : "—"}</td>
                 <td>
-                  {t.status !== "done" && t.status !== "cancelled" ? (
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      disabled={completeMutation.isPending}
-                      onClick={() => completeMutation.mutate(t.id)}
-                    >
-                      Завершить
-                    </button>
+                  {membershipsQuery.data?.items.find((m) => m.user_id === t.assignee_user_id)?.display_name ?? t.assignee_user_id}
+                </td>
+                <td>
+                  <div className="row">
+                    {t.status !== "done" && t.status !== "cancelled" ? (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={completeMutation.isPending}
+                        onClick={() => completeMutation.mutate(t.id)}
+                      >
+                        Завершить
+                      </button>
+                    ) : null}
+                    {t.status !== "done" && t.status !== "cancelled" ? (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setDelegatingTaskId(delegatingTaskId === t.id ? null : t.id);
+                          setAssigneeUserId("");
+                        }}
+                      >
+                        Делегировать
+                      </button>
+                    ) : null}
+                  </div>
+                  {delegatingTaskId === t.id ? (
+                    <div className="row" style={{ marginTop: 8 }}>
+                      <select value={assigneeUserId} onChange={(e) => setAssigneeUserId(e.target.value)}>
+                        <option value="">— выберите исполнителя —</option>
+                        {membershipsQuery.data?.items.map((m) => (
+                          <option key={m.membership_id} value={m.user_id}>
+                            {m.display_name} ({m.login_identity})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={!assigneeUserId || delegateMutation.isPending}
+                        onClick={() => delegateMutation.mutate({ taskId: t.id, assigneeUserId })}
+                      >
+                        Назначить
+                      </button>
+                    </div>
                   ) : null}
                 </td>
               </tr>
@@ -104,6 +160,7 @@ export function TasksListPage() {
         </table>
       ) : null}
       {completeMutation.isError ? <ErrorState error={completeMutation.error} /> : null}
+      {delegateMutation.isError ? <ErrorState error={delegateMutation.error} /> : null}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
-import type { Activity, Consent, Contact, ContactRole, ContactRoleType, TimelineEntry } from "@network-crm/contracts";
+import type { Activity, Consent, Contact, ContactRole, ContactRoleType, DuplicateCandidate, TimelineEntry } from "@network-crm/contracts";
 import { apiGet, apiPost } from "../api/client.js";
 import { EmptyState, ErrorState, LoadingState } from "../components/StatusStates.js";
 
@@ -29,11 +29,16 @@ export function ContactDetailPage() {
     queryKey: ["contact", id, "timeline"],
     queryFn: () => apiGet<{ items: TimelineEntry[] }>(`/contacts/${id}/timeline`),
   });
+  const duplicatesQuery = useQuery({
+    queryKey: ["contact", id, "duplicates"],
+    queryFn: () => apiGet<{ items: DuplicateCandidate[] }>(`/contacts/${id}/duplicates`),
+  });
 
   const invalidateContact = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ["contact", id] }),
       queryClient.invalidateQueries({ queryKey: ["contact", id, "timeline"] }),
+      queryClient.invalidateQueries({ queryKey: ["contact", id, "duplicates"] }),
     ]);
 
   const addRole = useMutation({
@@ -84,6 +89,19 @@ export function ContactDetailPage() {
         {archive.isError ? <ErrorState error={archive.error} /> : null}
       </div>
 
+      {contact.status === "active" ? (
+        <DuplicatesSection
+          contactId={id}
+          query={duplicatesQuery}
+          onMerged={() => {
+            void invalidateContact();
+            void queryClient.invalidateQueries({ queryKey: ["contact", id, "roles"] });
+            void queryClient.invalidateQueries({ queryKey: ["contact", id, "consents"] });
+            void queryClient.invalidateQueries({ queryKey: ["contact", id, "activities"] });
+          }}
+        />
+      ) : null}
+
       <RolesSection roles={rolesQuery} onAdd={(rt) => addRole.mutate(rt)} adding={addRole.isPending} addError={addRole.error} />
       <ConsentsSection contactId={id} query={consentsQuery} onRecorded={() => queryClient.invalidateQueries({ queryKey: ["contact", id, "consents"] })} />
       <ActivitiesSection
@@ -129,6 +147,61 @@ function RolesSection(props: {
           </button>
         ))}
       </div>
+    </section>
+  );
+}
+
+function DuplicatesSection(props: {
+  contactId: string;
+  query: ReturnType<typeof useQuery<{ items: DuplicateCandidate[] }>>;
+  onMerged: () => void;
+}) {
+  const { contactId, query, onMerged } = props;
+
+  const merge = useMutation({
+    mutationFn: (duplicateContactId: string) => apiPost(`/contacts/${contactId}/merge`, { duplicate_contact_id: duplicateContactId }),
+    onSuccess: onMerged,
+  });
+
+  if (query.data && query.data.items.length === 0) return null;
+
+  return (
+    <section className="card stack">
+      <h2 style={{ margin: 0, fontSize: "1rem" }}>Возможные дубли (BL-206 / FR-CONTACT-005)</h2>
+      {query.isLoading ? <LoadingState /> : null}
+      {query.isError ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : null}
+      {merge.isError ? <ErrorState error={merge.error} /> : null}
+      {query.data && query.data.items.length > 0 ? (
+        <table>
+          <thead>
+            <tr>
+              <th>Имя</th>
+              <th>Совпало по</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {query.data.items.map((d) => (
+              <tr key={d.contact_id}>
+                <td>
+                  <Link to={`/contacts/${d.contact_id}`}>{d.display_name}</Link>
+                </td>
+                <td>{d.matched_on.join(", ")}</td>
+                <td>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={merge.isPending}
+                    onClick={() => merge.mutate(d.contact_id)}
+                  >
+                    Объединить (оставить этот)
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
     </section>
   );
 }

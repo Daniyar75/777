@@ -4,3 +4,5 @@ export * from "./contacts.js";
 export * from "./consents.js";
 export * from "./activities.js";
 export * from "./timeline.js";
+export * from "./import-export.js";
+export * from "./merge.js";

@@ -53,7 +53,7 @@ export interface ApiRequestOptions extends RequestInit {
   anonymous?: boolean;
 }
 
-export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+async function performRequest(path: string, options: ApiRequestOptions): Promise<Response> {
   const { allowRefreshRetry = true, anonymous = false, ...init } = options;
   const token = anonymous ? null : getAccessToken();
 
@@ -69,10 +69,21 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   if (!res.ok) {
     throw new HttpError(res.status, await parseErrorBody(res));
   }
+  return res;
+}
+
+export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const res = await performRequest(path, options);
   if (res.status === 204) {
     return undefined as T;
   }
   return (await res.json()) as T;
+}
+
+/** For endpoints that return a non-JSON body, e.g. GET /contacts/export's CSV (BL-203). */
+export async function apiRequestText(path: string, options: ApiRequestOptions = {}): Promise<string> {
+  const res = await performRequest(path, options);
+  return res.text();
 }
 
 export function apiGet<T>(path: string, options?: ApiRequestOptions): Promise<T> {

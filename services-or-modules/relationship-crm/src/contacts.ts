@@ -55,52 +55,68 @@ export async function createContact(
       }
     }
 
-    const id = randomUUID();
-    const [row] = await tx
-      .insert(schema.contacts)
-      .values({
-        id,
-        tenantId: identity.tenantId,
-        ownerUserId: identity.actorUserId,
-        displayName: input.display_name,
-        fullName: input.full_name ?? null,
-        source: input.source ?? null,
-        normalizedPhone,
-        normalizedEmail,
-        externalId: input.external_id ?? null,
-        status: "active",
-        createdBy: identity.actorUserId,
-      })
-      .returning();
-
-    await recordAuditEntry(tx, {
-      tenant_id: identity.tenantId,
-      actor_user_id: identity.actorUserId,
-      action: "contact.created",
-      resource_type: "contact",
-      resource_id: id,
-      before: null,
-      after: { display_name: input.display_name, source: input.source ?? null },
-      reason: null,
-      correlation_id: correlationId,
-    });
-
-    await publish(
-      tx,
-      makeEnvelope({
-        eventType: "EVT-001-ContactCreated",
-        tenantId: identity.tenantId,
-        aggregateType: "Contact",
-        aggregateId: id,
-        aggregateVersion: 0,
-        correlationId,
-        producer: "relationship-crm",
-        payload: { contact_id: id, source: input.source ?? "manual", owner: identity.actorUserId },
-      }),
-    );
-
-    return mapContact(row!);
+    return insertNewContact(tx, identity, input, normalizedPhone, normalizedEmail, correlationId);
   });
+}
+
+/**
+ * Shared by createContact and import-export.ts's importContacts — the actual row insert +
+ * audit + domain event, assuming any duplicate-check policy has already been applied by the
+ * caller. Not exported from index.ts; it's an internal seam between this module's own files.
+ */
+export async function insertNewContact(
+  tx: Database,
+  identity: ActingIdentity,
+  input: { display_name: string; full_name?: string; source?: string; external_id?: string },
+  normalizedPhone: string | null,
+  normalizedEmail: string | null,
+  correlationId: string,
+): Promise<Contact> {
+  const id = randomUUID();
+  const [row] = await tx
+    .insert(schema.contacts)
+    .values({
+      id,
+      tenantId: identity.tenantId,
+      ownerUserId: identity.actorUserId,
+      displayName: input.display_name,
+      fullName: input.full_name ?? null,
+      source: input.source ?? null,
+      normalizedPhone,
+      normalizedEmail,
+      externalId: input.external_id ?? null,
+      status: "active",
+      createdBy: identity.actorUserId,
+    })
+    .returning();
+
+  await recordAuditEntry(tx, {
+    tenant_id: identity.tenantId,
+    actor_user_id: identity.actorUserId,
+    action: "contact.created",
+    resource_type: "contact",
+    resource_id: id,
+    before: null,
+    after: { display_name: input.display_name, source: input.source ?? null },
+    reason: null,
+    correlation_id: correlationId,
+  });
+
+  await publish(
+    tx,
+    makeEnvelope({
+      eventType: "EVT-001-ContactCreated",
+      tenantId: identity.tenantId,
+      aggregateType: "Contact",
+      aggregateId: id,
+      aggregateVersion: 0,
+      correlationId,
+      producer: "relationship-crm",
+      payload: { contact_id: id, source: input.source ?? "manual", owner: identity.actorUserId },
+    }),
+  );
+
+  return mapContact(row!);
 }
 
 export async function getContact(db: Database, identity: ActingIdentity, contactId: string): Promise<Contact> {

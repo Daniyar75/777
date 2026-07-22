@@ -7,6 +7,7 @@ import { AppLayout } from "./routes/AppLayout.js";
 import { DashboardPage } from "./routes/DashboardPage.js";
 import { ContactsListPage } from "./routes/ContactsListPage.js";
 import { ContactDetailPage } from "./routes/ContactDetailPage.js";
+import { ImportContactsPage } from "./routes/ImportContactsPage.js";
 import { TasksListPage } from "./routes/TasksListPage.js";
 
 /**
@@ -48,6 +49,7 @@ export function App() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/contacts" element={<ContactsListPage />} />
+        <Route path="/contacts/import" element={<ImportContactsPage />} />
         <Route path="/contacts/:id" element={<ContactDetailPage />} />
         <Route path="/tasks" element={<TasksListPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

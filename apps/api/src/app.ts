@@ -28,7 +28,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     reply.code(status).send(body);
   });
 
-  registerTenantRoutes(app, { db: options.db, provisioningKey: options.provisioningKey });
+  registerTenantRoutes(app, { db: options.db, provisioningKey: options.provisioningKey, tokenService });
   registerAuthRoutes(app, { db: options.db, tokenService });
   registerRoleRoutes(app, { db: options.db, tokenService });
   registerAuditRoutes(app, { db: options.db, tokenService });

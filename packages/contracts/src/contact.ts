@@ -21,6 +21,8 @@ export const Contact = z.object({
   updated_at: systemFields.updated_at,
   version: systemFields.version,
   archived_at: z.string().datetime().nullable(),
+  /** Set when this contact lost a merge; points at the surviving record (BR-024/FR-CONTACT-005). */
+  merged_into_id: z.string().uuid().nullable(),
 });
 export type Contact = z.infer<typeof Contact>;
 
@@ -42,6 +44,63 @@ export const DuplicateCandidate = z.object({
   matched_on: z.array(z.enum(["phone", "email", "external_id"])),
 });
 export type DuplicateCandidate = z.infer<typeof DuplicateCandidate>;
+
+// ---- BL-206: merge (FR-CONTACT-005) ----
+
+/** Caller picks which surviving-record values to keep; omitted fields keep the survivor's own value. */
+export const MergeContactsRequest = z.object({
+  duplicate_contact_id: z.string().uuid(),
+  field_resolutions: z
+    .object({
+      display_name: z.string().min(1).max(200).optional(),
+      full_name: z.string().max(300).nullable().optional(),
+      source: z.string().max(100).nullable().optional(),
+      external_id: z.string().max(200).nullable().optional(),
+    })
+    .optional(),
+});
+export type MergeContactsRequest = z.infer<typeof MergeContactsRequest>;
+
+// ---- BL-203: import (FR-CORE-006) / export (FR-CORE-007) ----
+
+export const ImportContactRow = z.object({
+  display_name: z.string().min(1).max(200),
+  full_name: z.string().max(300).optional(),
+  source: z.string().max(100).optional(),
+  phone: z.string().max(50).optional(),
+  email: z.string().email().optional(),
+  external_id: z.string().max(200).optional(),
+});
+export type ImportContactRow = z.infer<typeof ImportContactRow>;
+
+export const ImportContactsRequest = z.object({
+  mode: z.enum(["dry_run", "commit"]),
+  /** Default "skip": a row matching an existing contact is left alone (safe re-run, ACC-006 pattern). */
+  on_duplicate: z.enum(["skip", "create_anyway"]).optional(),
+  rows: z.array(ImportContactRow).min(1).max(1000),
+});
+export type ImportContactsRequest = z.infer<typeof ImportContactsRequest>;
+
+export const ImportRowOutcome = z.enum(["would_create", "created", "skipped_duplicate", "failed"]);
+export type ImportRowOutcome = z.infer<typeof ImportRowOutcome>;
+
+export const ImportRowResult = z.object({
+  row_index: z.number().int().nonnegative(),
+  outcome: ImportRowOutcome,
+  contact_id: z.string().uuid().optional(),
+  error: z.string().optional(),
+});
+export type ImportRowResult = z.infer<typeof ImportRowResult>;
+
+export const ImportContactsResult = z.object({
+  mode: z.enum(["dry_run", "commit"]),
+  total: z.number().int().nonnegative(),
+  created: z.number().int().nonnegative(),
+  skipped_duplicate: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  rows: z.array(ImportRowResult),
+});
+export type ImportContactsResult = z.infer<typeof ImportContactsResult>;
 
 /** ENT-007 ContactRole — Contact may hold several simultaneously (BR-001, BRULE-CONTACT-001). */
 export const ContactRoleType = z.enum(["candidate", "client", "partner", "other"]);
